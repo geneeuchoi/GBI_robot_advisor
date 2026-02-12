@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.models.goal import GoalInput
+from app.models.portfolio import OptimizationResult
 from app.models.simulation import SimulationRequest, SimulationResponse
 from app.services.asset_universe import get_default_universe
 from app.services.gap_analyzer import analyze_gap
@@ -23,11 +24,23 @@ def simulate(req: SimulationRequest) -> SimulationResponse:
 
     gap_result = analyze_gap(goal)
     assets = get_default_universe(goal.eligible_youth_savings)
-    portfolio = optimize_portfolio(
-        assets=assets,
-        goal=goal,
-        required_return=gap_result.required_annual_return,
-    )
+
+    # 최적화 불가능해도 시뮬레이션은 수행 (빈 포트폴리오로 비교)
+    if not gap_result.goal_achievable:
+        portfolio = OptimizationResult(
+            success=False,
+            allocations=[],
+            portfolio_duration=0.0,
+            portfolio_return=0.0,
+            expected_future_value=0.0,
+            message="목표 달성 불가",
+        )
+    else:
+        portfolio = optimize_portfolio(
+            assets=assets,
+            goal=goal,
+            required_return=gap_result.required_annual_return,
+        )
 
     return simulate_scenarios(
         goal=goal,
