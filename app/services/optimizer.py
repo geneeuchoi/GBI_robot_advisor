@@ -9,27 +9,73 @@ from app.services.gap_analyzer import _future_value
 from app.services.tax import after_tax_return
 
 
+def _diagnose_infeasibility(
+    assets: list[Asset],
+    returns: np.ndarray,
+    durations: np.ndarray,
+    T_years: float,
+    epsilon: float,
+    required_return: float | None,
+) -> str:
+    """LP 솔버 실패 시 원인을 진단한다."""
+    reasons: list[str] = []
+
+    # 듀레이션 달성 가능 범위 확인
+    d_min = float(durations.min())
+    d_max = float(durations.max())
+    target_low = T_years - epsilon
+    target_high = T_years + epsilon
+
+    if d_max < target_low:
+        reasons.append(
+            f"보유 자산의 최대 듀레이션({d_max:.1f}년)이 "
+            f"목표 범위 하한({target_low:.1f}년)보다 짧습니다."
+        )
+    if d_min > target_high:
+        reasons.append(
+            f"보유 자산의 최소 듀레이션({d_min:.1f}년)이 "
+            f"목표 범위 상한({target_high:.1f}년)보다 깁니다."
+        )
+
+    # 수익률 달성 가능 여부 확인
+    if required_return is not None:
+        max_return = float(returns.max())
+        if max_return < required_return:
+            reasons.append(
+                f"최고 세후 수익률({max_return:.2%})이 "
+                f"필요 수익률({required_return:.2%})에 미달합니다. "
+                f"월 저축액을 늘리거나 목표 기간을 연장해보세요."
+            )
+
+    if not reasons:
+        reasons.append("제약 조건 조합이 동시에 만족 불가합니다.")
+
+    return "최적화 실패: " + " ".join(reasons)
+
+
 def optimize_portfolio(
     assets: list[Asset],
     goal: GoalInput,
     required_return: float | None = None,
     epsilon: float | None = None,
 ) -> OptimizationResult:
-    """Phase 4: LP 솔버로 최적 포트폴리오를 산출한다.
-
-    목적함수: Maximize Σ(w_i × after_tax_return_i)
-    제약조건:
-      1. 듀레이션 매칭: |Σ(w_i × D_i) - T_years| ≤ ε
-      2. 최소 수익률: Σ(w_i × R_i) ≥ r_target (있을 경우)
-      3. 예산: Σw_i = 1
-      4. 공매도 금지: w_i ≥ 0
-      5. 청년도약저축 한도: w_youth × C ≤ 70만
-      6. ISA 한도: w_isa × 12C ≤ 2000만
-    """
+    """Phase 4: LP 솔버로 최적 포트폴리오를 산출한다."""
     if epsilon is None:
         epsilon = settings.duration_epsilon
 
     n = len(assets)
+
+    # 빈 자산 유니버스 방어
+    if n == 0:
+        return OptimizationResult(
+            success=False,
+            allocations=[],
+            portfolio_duration=0.0,
+            portfolio_return=0.0,
+            expected_future_value=0.0,
+            message="최적화 실패: 투자 가능한 자산이 없습니다.",
+        )
+
     T_years = goal.time_horizon_months / 12
     C = goal.monthly_contribution
 
@@ -91,13 +137,16 @@ def optimize_portfolio(
     )
 
     if not result.success:
+        message = _diagnose_infeasibility(
+            assets, returns, durations, T_years, epsilon, required_return
+        )
         return OptimizationResult(
             success=False,
             allocations=[],
             portfolio_duration=0.0,
             portfolio_return=0.0,
             expected_future_value=0.0,
-            message=f"최적화 실패: {result.message}",
+            message=message,
         )
 
     weights = result.x
@@ -121,6 +170,18 @@ def optimize_portfolio(
 
     portfolio_duration = float(weights @ durations)
     portfolio_return = float(weights @ returns)
+
+    # 듀레이션 매칭 사후 검증
+    duration_gap = abs(portfolio_duration - T_years)
+    if duration_gap > epsilon + 0.01:
+        return OptimizationResult(
+            success=False,
+            allocations=allocations,
+            portfolio_duration=round(portfolio_duration, 4),
+            portfolio_return=round(portfolio_return, 6),
+            expected_future_value=0.0,
+            message=f"듀레이션 매칭 검증 실패: 갭 {duration_gap:.2f}년 (허용 {epsilon}년)",
+        )
 
     expected_fv = _future_value(
         goal.initial_principal,
