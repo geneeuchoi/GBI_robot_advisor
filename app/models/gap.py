@@ -9,3 +9,7 @@ class GapAnalysisResult(BaseModel):
     required_annual_return: float | None = Field(
         default=None, description="목표 달성 최소 연 수익률"
     )
+    goal_achievable: bool = Field(
+        default=True,
+        description="목표 달성 가능 여부 (100% 수익률로도 불가능하면 False)",
+    )
