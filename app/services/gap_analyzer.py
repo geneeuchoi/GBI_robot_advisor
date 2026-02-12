@@ -1,3 +1,5 @@
+import math
+
 from scipy.optimize import brentq
 
 from app.config import settings
@@ -10,12 +12,23 @@ def _future_value(principal: float, monthly: float, annual_rate: float, months: 
 
     FV = P0 × (1 + r_m)^n + C × [((1 + r_m)^n - 1) / r_m]
     """
+    if months <= 0:
+        return principal
+
     if annual_rate == 0:
         return principal + monthly * months
 
     r_m = annual_rate / 12
-    n = months
-    compound = (1 + r_m) ** n
+
+    # r_m이 -1에 가까우면 수치 불안정 → 단순 합산으로 대체
+    if r_m <= -1:
+        return principal + monthly * months
+
+    try:
+        compound = (1 + r_m) ** months
+    except OverflowError:
+        return math.inf
+
     fv_principal = principal * compound
     fv_annuity = monthly * ((compound - 1) / r_m)
     return fv_principal + fv_annuity
@@ -39,6 +52,8 @@ def analyze_gap(
     optimization_needed = gap > 0
 
     required_return: float | None = None
+    goal_achievable = True
+
     if optimization_needed:
         def _fv_diff(r: float) -> float:
             return (
@@ -51,10 +66,23 @@ def analyze_gap(
                 - goal.goal_amount
             )
 
-        try:
-            required_return = brentq(_fv_diff, 0.0, 1.0, xtol=1e-8)
-        except ValueError:
+        # brentq 호출 전에 구간 양 끝값의 부호가 다른지 확인
+        f_low = _fv_diff(0.0)
+        f_high = _fv_diff(1.0)  # 100% 수익률
+
+        if f_low >= 0:
+            # 0% 수익률로도 달성 가능 (초기자본이 충분한 경우)
+            required_return = 0.0
+        elif f_high < 0:
+            # 100% 수익률로도 목표 미달 → 달성 불가능
+            goal_achievable = False
             required_return = None
+        else:
+            try:
+                required_return = brentq(_fv_diff, 0.0, 1.0, xtol=1e-8)
+            except ValueError:
+                goal_achievable = False
+                required_return = None
 
     return GapAnalysisResult(
         future_value_safe=round(fv_safe, 0),
@@ -62,4 +90,5 @@ def analyze_gap(
         gap=round(gap, 0),
         optimization_needed=optimization_needed,
         required_annual_return=required_return,
+        goal_achievable=goal_achievable,
     )
