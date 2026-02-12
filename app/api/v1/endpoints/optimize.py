@@ -24,6 +24,21 @@ def optimize(goal: GoalInput) -> OptimizationResult:
             message="안전자산만으로 목표 달성 가능합니다.",
         )
 
+    # 목표 달성이 수학적으로 불가능한 경우
+    if not gap_result.goal_achievable:
+        return OptimizationResult(
+            success=False,
+            allocations=[],
+            portfolio_duration=0.0,
+            portfolio_return=0.0,
+            expected_future_value=0.0,
+            message=(
+                "목표 달성이 불가능합니다. "
+                "월 저축액을 늘리거나, 목표 기간을 연장하거나, "
+                "목표 금액을 낮춰주세요."
+            ),
+        )
+
     assets = get_default_universe(goal.eligible_youth_savings)
 
     return optimize_portfolio(
