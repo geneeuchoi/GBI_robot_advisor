@@ -1,7 +1,7 @@
 from app.config import settings
 from app.models.asset import Asset
 from app.models.goal import GoalInput
-from app.models.portfolio import AllocationItem, OptimizationResult
+from app.models.portfolio import OptimizationResult
 from app.models.simulation import (
     RateScenario,
     ScenarioResult,
@@ -34,15 +34,30 @@ def _portfolio_fv_under_shift(
     """
     asset_map = {a.asset_class: a for a in assets}
     total_fv = 0.0
+    T_years = goal.time_horizon_months / 12
+
+    if not portfolio.allocations:
+        return _future_value(
+            goal.initial_principal,
+            goal.monthly_contribution,
+            0.0,
+            goal.time_horizon_months,
+        )
 
     for alloc in portfolio.allocations:
         asset = asset_map.get(alloc.asset_class)
         if asset is None:
+            # 포트폴리오에 포함된 자산이 유니버스에 없으면 무위험 수익률로 대체
+            monthly_amount = alloc.monthly_amount
+            weight_principal = alloc.weight * goal.initial_principal
+            total_fv += _future_value(
+                weight_principal, monthly_amount, 0.0, goal.time_horizon_months
+            )
             continue
 
-        # 기본 수익률에 금리 변동 반영
-        shifted_gross = asset.gross_return + rate_shift
-        shifted_after_tax = after_tax_return(max(shifted_gross, 0.0), asset.tax_benefit)
+        # 기본 수익률에 금리 변동 반영 (음수 방어)
+        shifted_gross = max(asset.gross_return + rate_shift, 0.0)
+        shifted_after_tax = after_tax_return(shifted_gross, asset.tax_benefit)
 
         monthly_amount = alloc.monthly_amount
         weight_principal = alloc.weight * goal.initial_principal
@@ -57,11 +72,11 @@ def _portfolio_fv_under_shift(
         # 듀레이션 매칭 면역화 보정
         # 듀레이션이 목표와 일치하면 금리 변동의 1차 효과가 상쇄됨
         # 잔여 2차 효과만 남음 (convexity bonus)
-        T_years = goal.time_horizon_months / 12
         duration_gap = asset.duration - T_years
         # 면역화 보정: 듀레이션 갭이 작을수록 금리 변동 영향 감소
-        immunization_factor = 1.0 - abs(duration_gap) * abs(rate_shift) * 0.5
-        immunization_factor = max(0.8, min(1.2, immunization_factor))
+        # 갭과 금리변동이 모두 클 때만 유의미한 영향
+        immunization_adjustment = abs(duration_gap) * abs(rate_shift) * 0.5
+        immunization_factor = max(0.85, min(1.15, 1.0 - immunization_adjustment))
 
         total_fv += asset_fv * immunization_factor
 
@@ -86,8 +101,9 @@ def simulate_scenarios(
     for scenario in scenarios:
         new_rate = base_rate + scenario.rate_shift
 
-        # (A) 단순 적금
-        safe_after_tax = new_rate * (1 - settings.interest_income_tax_rate)
+        # (A) 단순 적금 — 금리가 음수가 되면 0%로 클램프
+        safe_rate = max(new_rate, 0.0)
+        safe_after_tax = safe_rate * (1 - settings.interest_income_tax_rate)
         simple_fv = _future_value(
             goal.initial_principal,
             goal.monthly_contribution,
