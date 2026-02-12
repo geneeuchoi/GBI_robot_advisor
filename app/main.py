@@ -1,7 +1,12 @@
-from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from pathlib import Path
+
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from app.api.v1.router import router as v1_router
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
 def create_app() -> FastAPI:
@@ -11,10 +16,13 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
     app.include_router(v1_router)
+    app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+
+    templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
     @app.get("/", include_in_schema=False)
-    def root():
-        return RedirectResponse(url="/docs")
+    def index(request: Request):
+        return templates.TemplateResponse("index.html", {"request": request})
 
     return app
 

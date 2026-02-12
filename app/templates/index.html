@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GBI 로보 어드바이저</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+</head>
+<body>
+  <main class="container">
+
+    <!-- Header -->
+    <header>
+      <h1>GBI 로보 어드바이저</h1>
+      <p>듀레이션 매칭 기반 사회초년생 맞춤 자산배분 엔진</p>
+    </header>
+
+    <!-- Step Progress -->
+    <nav id="step-nav">
+      <ol>
+        <li class="active" data-step="1">목표 설정</li>
+        <li data-step="2">갭 분석</li>
+        <li data-step="3">포트폴리오</li>
+        <li data-step="4">시뮬레이션</li>
+      </ol>
+    </nav>
+
+    <!-- ==================== Step 1: Goal Input ==================== -->
+    <section id="step-1" class="step active">
+      <h2>Step 1. 재무 목표 설정</h2>
+      <p>목표 금액과 저축 계획을 입력해주세요.</p>
+
+      <form id="goal-form" novalidate>
+        <label for="goal_amount">
+          목표 금액 (원)
+          <input type="number" id="goal_amount" name="goal_amount"
+                 placeholder="100000000" min="1" required>
+          <small>예: 1억 = 100,000,000</small>
+        </label>
+
+        <label for="time_horizon_months">
+          목표 기간 (개월)
+          <input type="number" id="time_horizon_months" name="time_horizon_months"
+                 placeholder="60" min="1" required>
+          <small>예: 5년 = 60개월</small>
+        </label>
+
+        <label for="monthly_contribution">
+          월 저축 가능액 (원)
+          <input type="number" id="monthly_contribution" name="monthly_contribution"
+                 placeholder="1500000" min="1" required>
+          <small>예: 150만원 = 1,500,000</small>
+        </label>
+
+        <label for="initial_principal">
+          초기 자본 (원)
+          <input type="number" id="initial_principal" name="initial_principal"
+                 placeholder="0" min="0" value="0">
+          <small>현재 보유 중인 투자 가능 자금</small>
+        </label>
+
+        <fieldset>
+          <label>
+            <input type="checkbox" id="eligible_youth_savings" name="eligible_youth_savings">
+            청년도약저축 가입 자격 보유
+          </label>
+          <small>만 19~34세, 총급여 7,500만원 이하인 경우 해당</small>
+        </fieldset>
+
+        <button type="submit" id="btn-analyze">분석 시작하기</button>
+      </form>
+    </section>
+
+    <!-- ==================== Step 2: Gap Analysis ==================== -->
+    <section id="step-2" class="step">
+      <h2>Step 2. 갭 분석 결과</h2>
+
+      <article id="gap-summary"></article>
+
+      <table id="gap-table">
+        <thead>
+          <tr><th>항목</th><th>값</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>안전자산 예상 미래가치</td><td id="fv-safe">-</td></tr>
+          <tr><td>목표 금액</td><td id="fv-goal">-</td></tr>
+          <tr><td>부족액 (Gap)</td><td id="fv-gap">-</td></tr>
+          <tr><td>필요 연 수익률</td><td id="fv-required-return">-</td></tr>
+        </tbody>
+      </table>
+
+      <div class="step-actions">
+        <button class="secondary btn-back" data-to="1">이전으로</button>
+        <button id="btn-optimize" disabled>포트폴리오 최적화</button>
+      </div>
+    </section>
+
+    <!-- ==================== Step 3: Portfolio Optimization ==================== -->
+    <section id="step-3" class="step">
+      <h2>Step 3. 최적 포트폴리오</h2>
+
+      <div class="grid" id="portfolio-stats">
+        <article>
+          <header>포트폴리오 듀레이션</header>
+          <p id="stat-duration" class="stat-value">-</p>
+        </article>
+        <article>
+          <header>가중 세후 수익률</header>
+          <p id="stat-return" class="stat-value">-</p>
+        </article>
+        <article>
+          <header>예상 미래가치</header>
+          <p id="stat-fv" class="stat-value">-</p>
+        </article>
+      </div>
+
+      <div class="grid">
+        <div>
+          <canvas id="allocation-chart"></canvas>
+        </div>
+        <div>
+          <table id="allocation-table">
+            <thead>
+              <tr>
+                <th>상품명</th>
+                <th>비중</th>
+                <th>월 투입액</th>
+                <th class="hide-mobile">듀레이션 기여</th>
+                <th>세후 수익률</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="step-actions">
+        <button class="secondary btn-back" data-to="2">이전으로</button>
+        <button id="btn-simulate">금리 시뮬레이션</button>
+      </div>
+    </section>
+
+    <!-- ==================== Step 4: Simulation ==================== -->
+    <section id="step-4" class="step">
+      <h2>Step 4. 금리 변동 시뮬레이션</h2>
+      <p>기준 금리: <strong id="sim-base-rate">-</strong></p>
+
+      <canvas id="simulation-chart"></canvas>
+
+      <table id="simulation-table">
+        <thead>
+          <tr>
+            <th>시나리오</th>
+            <th>금리 변동</th>
+            <th class="hide-mobile">변동 후 금리</th>
+            <th>단순 적금</th>
+            <th>GBI 포트폴리오</th>
+            <th>차이</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="step-actions">
+        <button class="secondary btn-back" data-to="3">이전으로</button>
+        <button id="btn-restart">처음부터 다시하기</button>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="{{ url_for('static', path='js/app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+/* Step visibility */
+.step { display: none; }
+.step.active { display: block; }
+
+/* Step navigation indicator */
+#step-nav ol {
+  display: flex;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2rem 0;
+  gap: 0;
+  counter-reset: step;
+}
+
+#step-nav li {
+  flex: 1;
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 3px solid var(--pico-muted-border-color);
+  color: var(--pico-muted-color);
+  font-size: 0.9rem;
+  counter-increment: step;
+  transition: all 0.2s;
+}
+
+#step-nav li::before {
+  content: counter(step) ". ";
+  font-weight: bold;
+}
+
+#step-nav li.active {
+  border-bottom-color: var(--pico-primary);
+  color: var(--pico-primary);
+  font-weight: bold;
+}
+
+#step-nav li.completed {
+  border-bottom-color: var(--pico-primary);
+  color: var(--pico-primary);
+  opacity: 0.6;
+}
+
+/* Stat cards */
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+  color: var(--pico-primary);
+}
+
+#portfolio-stats article {
+  text-align: center;
+}
+
+#portfolio-stats article header {
+  font-size: 0.85rem;
+  color: var(--pico-muted-color);
+  margin-bottom: 0.25rem;
+}
+
+/* Gap analysis status cards */
+#gap-summary.warning {
+  border-left: 4px solid #FF9800;
+}
+
+#gap-summary.success {
+  border-left: 4px solid #4CAF50;
+}
+
+/* Simulation difference colors */
+.positive { color: #2E7D32; font-weight: bold; }
+.negative { color: #C62828; font-weight: bold; }
+
+/* Error banner */
+.error-banner {
+  background: #FFEBEE;
+  border: 1px solid #EF5350;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.error-banner p {
+  margin: 0;
+  color: #C62828;
+  white-space: pre-line;
+}
+
+/* Step action buttons */
+.step-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+  gap: 1rem;
+}
+
+/* Chart container */
+canvas {
+  max-height: 350px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  #step-nav li {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.25rem;
+  }
+
+  table {
+    font-size: 0.85rem;
+  }
+
+  .hide-mobile {
+    display: none;
+  }
+
+  .stat-value {
+    font-size: 1.2rem;
+  }
+}
