@@ -15,7 +15,19 @@ def macaulay_duration(
 
     Returns:
         매콜리 듀레이션 (년)
+
+    Raises:
+        ValueError: 유효하지 않은 입력값인 경우
     """
+    if not cash_flows or not periods:
+        return 0.0
+
+    if len(cash_flows) != len(periods):
+        raise ValueError("cash_flows와 periods의 길이가 다릅니다.")
+
+    if ytm <= -1:
+        raise ValueError(f"YTM({ytm})이 -1 이하입니다. 할인율을 확인하세요.")
+
     cf = np.array(cash_flows)
     t = np.array(periods)
 
